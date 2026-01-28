@@ -1,0 +1,2054 @@
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script> 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/9.4.4/math.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {  
+  --primary: #2962ff;
+  --secondary: #455a64;
+  --bg: #fafafa;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Cairo', sans-serif;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--secondary);
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 2rem;
+  direction: rtl;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  direction: rtl;
+}
+
+.control-group {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+}
+
+.control-group:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.chart-container {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  margin-bottom: 2rem;
+  min-height: 500px;
+  transition: all 0.3s ease;
+}
+
+.chart-container:hover {
+  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+}
+
+button {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+input, select {
+  width: 100%;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  direction: rtl;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+select:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(41,98,255,0.2);
+}
+
+.dropzone {
+  border: 2px dashed #ddd;
+  padding: 2rem;
+  text-align: center;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  transition: all 0.3s ease;
+}
+
+.dropzone.dragover {
+  border-color: var(--primary);
+  background: rgba(41,98,255,0.1);
+}
+
+.statistics {
+  direction: rtl;
+  text-align: right;
+}
+
+.statistics-container {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin: 2rem 0;
+  direction: rtl;
+}
+
+.variables-list {
+  margin-top: 1rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.variable-item {
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+
+.variable-item:hover {
+  background: rgba(41,98,255,0.1);
+}
+
+.loading {
+  display: none;
+  text-align: center;
+  padding: 2rem;
+}
+
+.loading::after {
+  content: '';
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>VisualizerStat</h1>
+    <p>التحليل الإحصائي المتقدم وإنشاء المنحنيات</p>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <h3>تحميل البيانات</h3>
+      <div class="dropzone" id="dropzone">
+        اسحب ملف CSV/Excel هنا
+        <br>أو<br>
+        <button onclick="document.getElementById('fileInput').click()">اختر ملف</button>
+        <input type="file" id="fileInput" style="display: none" accept=".csv,.xlsx">
+      </div>
+    </div>
+
+    <div class="control-group">
+      <h3>المتغيرات</h3>
+      <select id="variable1" class="variable-select">
+        <option value="">اختر المتغير الأول</option>
+      </select>
+      <select id="variable2" class="variable-select" style="margin-top: 1rem;">
+        <option value="">اختر المتغير الثاني</option>
+      </select>
+    </div>
+
+    <div class="control-group">
+      <h3>نوع المخطط</h3>
+      <select id="chartType">
+        <option value="scatter">مخطط التشتت</option>
+        <option value="histogram">المدرج التكراري</option>
+        <option value="box">مخطط الصندوق والشارب</option>
+        <option value="normal">التوزيع الطبيعي</option>
+        <option value="line">المخطط الخطي</option>
+        <option value="bar">المخطط العمودي</option>
+        <option value="pie">المخطط الدائري</option>
+        <option value="density">منحنى الكثافة</option>
+        <option value="time">السلاسل الزمنية</option>
+        <option value="regression">الانحدار الخطي</option>
+        <option value="correlogram">رسوم الارتباط المتقدم</option>
+        <option value="facetGrid">الرسوم متعددة العلاقات</option>
+        <option value="ppplot">PP Plot</option>
+        <option value="qqplot">QQ Plot</option>
+        <option value="grid">الرسوم البيانية الشبكية</option>
+        <option value="logit">منحنى اللوجيت (Logit)</option>
+        <option value="probit">منحنى البروبيت (Probit)</option>
+        <option value="cluster">التحليل العنقودي</option>
+        <option value="fdist">F توزيع</option>
+        <option value="tdist">t توزيع</option>
+        <option value="chisqdist">χ² توزيع</option>
+        <option value="correlation">مصفوفة الارتباط</option>
+        <option value="exponential">التوزيع الأسي</option>
+        <option value="arima">ARIMA نموذج</option>
+        <option value="sarima">SARIMA نموذج</option>
+        <option value="deviation">مخططات الانحراف</option>
+        <option value="outliers">مخططات الشذوذ</option>
+        <option value="symmetry">مخططات التماثل</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="chart-container">
+    <div id="chart"></div>
+    <div class="loading" id="loading"></div>
+  </div>
+
+  <div class="statistics-container">
+    <h3>الإحصاءات الوصفية</h3>
+    <div id="statistics" class="statistics"></div>
+  </div>
+</div>
+
+<script>
+let data = [];
+let headers = [];
+let currentChart = null;
+let selectedVariable1 = 0;
+let selectedVariable2 = 0;
+
+function handleFileSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const loading = document.getElementById('loading');
+  loading.style.display = 'block';
+  
+  const reader = new FileReader();
+  
+  // Handle both CSV and Excel files
+  if (file.name.endsWith('.csv')) {
+    reader.onload = function(e) {
+      const text = new TextDecoder('utf-8').decode(new Uint8Array(e.target.result));
+      const lines = text.split('\n');
+      headers = lines[0].split(',').map(h => h.trim());
+      
+      data = lines.slice(1)
+        .map(line => line.split(','))
+        .filter(row => row.length > 1)
+        .map(row => row.map(val => parseFloat(val)))
+        .filter(row => row.every(val => !isNaN(val)));
+        
+      updateVariablesList();
+      updateChart();
+      updateStatistics();
+      loading.style.display = 'none';
+    };
+    reader.readAsArrayBuffer(file);
+  } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+    reader.onload = function(e) {
+      const workbook = XLSX.read(e.target.result, {type: 'array'});
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      const excelData = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1,
+        raw: false,
+        defval: '',
+      });
+      
+      headers = excelData[0];
+      data = excelData.slice(1)
+        .map(row => row.map(val => parseFloat(val)))
+        .filter(row => row.every(val => !isNaN(val)));
+      
+      updateVariablesList();
+      updateChart();
+      updateStatistics();
+      loading.style.display = 'none';
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function updateVariablesList() {
+  const variable1Select = document.getElementById('variable1');
+  const variable2Select = document.getElementById('variable2');
+  
+  // Clear existing options
+  variable1Select.innerHTML = '<option value="">اختر المتغير الأول</option>';
+  variable2Select.innerHTML = '<option value="">اختر المتغير الثاني</option>';
+  
+  // Add options for each header
+  headers.forEach((header, index) => {
+    const option1 = document.createElement('option');
+    option1.value = index;
+    option1.textContent = header;
+    variable1Select.appendChild(option1);
+    
+    const option2 = document.createElement('option');
+    option2.value = index;
+    option2.textContent = header;
+    variable2Select.appendChild(option2);
+  });
+  
+  // Add event listeners
+  variable1Select.addEventListener('change', (e) => {
+    selectedVariable1 = parseInt(e.target.value);
+    updateChart();
+    updateStatistics();
+  });
+  
+  variable2Select.addEventListener('change', (e) => {
+    selectedVariable2 = parseInt(e.target.value);
+    updateChart();
+    updateStatistics();
+  });
+}
+
+function parseCSV(text) {
+  return text.split('\n')
+    .map(line => line.split(','))
+    .filter(row => row.length > 1)
+    .map(row => row.map(val => parseFloat(val)))
+    .filter(row => row.every(val => !isNaN(val)));
+}
+
+function calculateSkewness(values) {
+  const n = values.length;
+  const mean = math.mean(values);
+  const std = math.std(values);
+  
+  if (std === 0) return 0;
+  
+  const sum = values.reduce((acc, val) => {
+    return acc + Math.pow((val - mean) / std, 3);
+  }, 0);
+  
+  return (n / ((n - 1) * (n - 2))) * sum;
+}
+
+function updateStatistics() {
+  if (data.length === 0) return;
+  
+  const values1 = data.map(row => row[selectedVariable1]);
+  const values2 = data.map(row => row[selectedVariable2]);
+
+  const statsTable = document.createElement('table');
+  statsTable.style.width = '100%';
+  statsTable.style.borderCollapse = 'collapse';
+  statsTable.style.marginTop = '1rem';
+  statsTable.style.direction = 'rtl';
+
+  // Create header row
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  headerRow.innerHTML = `
+    <th style="padding: 10px; border: 1px solid #ddd; background-color: #f5f5f5; text-align: right;">المتغير</th>
+    <th style="padding: 10px; border: 1px solid #ddd; background-color: #f5f5f5; text-align: center;">المتوسط</th>
+    <th style="padding: 10px; border: 1px solid #ddd; background-color: #f5f5f5; text-align: center;">الوسيط</th>
+    <th style="padding: 10px; border: 1px solid #ddd; background-color: #f5f5f5; text-align: center;">الانحراف المعياري</th>
+    <th style="padding: 10px; border: 1px solid #ddd; background-color: #f5f5f5; text-align: center;">التباين</th>
+    <th style="padding: 10px; border: 1px solid #ddd; background-color: #f5f5f5; text-align: center;">الالتواء</th>
+    <th style="padding: 10px; border: 1px solid #ddd; background-color: #f5f5f5; text-align: center;">الحد الأدنى</th>
+    <th style="padding: 10px; border: 1px solid #ddd; background-color: #f5f5f5; text-align: center;">الحد الأقصى</th>
+  `;
+  thead.appendChild(headerRow);
+  statsTable.appendChild(thead);
+
+  // Create table body
+  const tbody = document.createElement('tbody');
+
+  // Add row for first variable
+  const row1 = document.createElement('tr');
+  row1.innerHTML = `
+    <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold; text-align: right;">${headers[selectedVariable1] || 'المتغير الأول'}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.mean(values1).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.median(values1).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.std(values1).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.variance(values1).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${calculateSkewness(values1).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.min(values1).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.max(values1).toFixed(2)}</td>
+  `;
+
+  // Add row for second variable
+  const row2 = document.createElement('tr');
+  row2.innerHTML = `
+    <td style="padding: 10px; border: 1px solid #ddd; font-weight: bold; text-align: right;">${headers[selectedVariable2] || 'المتغير الثاني'}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.mean(values2).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.median(values2).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.std(values2).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.variance(values2).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${calculateSkewness(values2).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.min(values2).toFixed(2)}</td>
+    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${math.max(values2).toFixed(2)}</td>
+  `;
+
+  tbody.appendChild(row1);
+  tbody.appendChild(row2);
+  statsTable.appendChild(tbody);
+
+  // Add hover effect styles
+  const style = document.createElement('style');
+  style.textContent = `
+    .statistics-table tr:hover {
+      background-color: #f8f9fa;
+    }
+    .statistics-table td, .statistics-table th {
+      transition: background-color 0.2s;
+    }
+  `;
+  document.head.appendChild(style);
+  statsTable.className = 'statistics-table';
+
+  // Clear previous content and append new table
+  const statisticsDiv = document.getElementById('statistics');
+  statisticsDiv.innerHTML = '';
+  statisticsDiv.appendChild(statsTable);
+}
+
+function calculateLogit(x) {
+  return 1 / (1 + Math.exp(-x));
+}
+
+function calculateProbit(x) {
+  return 0.5 * (1 + math.erf(x / Math.sqrt(2)));
+}
+
+function calculateKMeansClusters(data, k) {
+  // Initialize centroids randomly
+  let centroids = data.slice(0, k);
+  let labels = new Array(data.length).fill(0);
+  let oldLabels = null;
+  let iterations = 0;
+  const maxIterations = 100;
+
+  while (iterations < maxIterations) {
+    // Assign points to nearest centroid
+    oldLabels = [...labels];
+    for (let i = 0; i < data.length; i++) {
+      let minDist = Infinity;
+      for (let j = 0; j < k; j++) {
+        const dist = euclideanDistance(data[i], centroids[j]);
+        if (dist < minDist) {
+          minDist = dist;
+          labels[i] = j;
+        }
+      }
+    }
+
+    // Check convergence
+    if (arraysEqual(labels, oldLabels)) break;
+
+    // Update centroids
+    const newCentroids = Array(k).fill().map(() => Array(data[0].length).fill(0));
+    const counts = Array(k).fill(0);
+    
+    for (let i = 0; i < data.length; i++) {
+      const cluster = labels[i];
+      counts[cluster]++;
+      for (let j = 0; j < data[i].length; j++) {
+        newCentroids[cluster][j] += data[i][j];
+      }
+    }
+
+    for (let i = 0; i < k; i++) {
+      if (counts[i] > 0) {
+        centroids[i] = newCentroids[i].map(sum => sum / counts[i]);
+      }
+    }
+
+    iterations++;
+  }
+
+  return { labels, centroids };
+}
+
+function euclideanDistance(point1, point2) {
+  return Math.sqrt(point1.reduce((sum, val, i) => sum + Math.pow(val - point2[i], 2), 0));
+}
+
+function arraysEqual(arr1, arr2) {
+  if (!arr1 || !arr2) return false;
+  return arr1.every((val, i) => val === arr2[i]);
+}
+
+function updateChart() {
+  const chartType = document.getElementById('chartType').value;
+  let traces = [];
+  const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+
+  // Define layout at the beginning of the function
+  let layout = {
+    margin: { t: 50, r: 30, b: 40, l: 50 },
+    showlegend: true,
+    font: { 
+      family: 'Cairo',
+      size: 12
+    },
+    direction: 'rtl',
+    title: {
+      text: `${headers[selectedVariable1]} vs ${headers[selectedVariable2]}`,
+      font: { 
+        family: 'Cairo',
+        size: 16,
+        weight: 'bold'
+      }
+    },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    xaxis: {
+      gridcolor: '#eee',
+      zerolinecolor: '#ddd'
+    },
+    yaxis: {
+      gridcolor: '#eee',
+      zerolinecolor: '#ddd'
+    }
+  };
+
+  if (data.length === 0) return;
+
+  const values1 = data.map(row => row[selectedVariable1]);
+  const values2 = data.map(row => row[selectedVariable2]);
+
+  switch(chartType) {
+    case 'scatter':
+      traces = [{
+        type: 'scatter',
+        mode: 'markers',
+        x: values1,
+        y: values2,
+        marker: { 
+          color: primaryColor,
+          size: 8,
+          opacity: 0.7
+        },
+        name: `${headers[selectedVariable1]} vs ${headers[selectedVariable2]}`
+      }];
+      break;
+    
+    case 'histogram':
+      traces = [
+        {
+          type: 'histogram',
+          x: values1,
+          name: headers[selectedVariable1],
+          opacity: 0.7,
+          marker: { color: primaryColor }
+        },
+        {
+          type: 'histogram',
+          x: values2,
+          name: headers[selectedVariable2],
+          opacity: 0.7,
+          marker: { color: '#ff4081' }
+        }
+      ];
+      break;
+    
+    case 'box':
+      traces = [
+        {
+          type: 'box',
+          y: values1,
+          name: headers[selectedVariable1],
+          boxpoints: 'outliers',
+          marker: { color: primaryColor }
+        },
+        {
+          type: 'box',
+          y: values2,
+          name: headers[selectedVariable2],
+          boxpoints: 'outliers',
+          marker: { color: '#ff4081' }
+        }
+      ];
+      break;
+
+    case 'normal':
+      const mean1 = math.mean(values1);
+      const std1 = math.std(values1);
+      const x1 = Array.from({length: 100}, (_, i) => 
+        mean1 - 3*std1 + (6*std1 * i/99)
+      );
+      const y1 = x1.map(xi => 
+        Math.exp(-0.5 * Math.pow((xi - mean1)/std1, 2)) / 
+        (std1 * Math.sqrt(2 * Math.PI))
+      );
+      
+      traces = [{
+        type: 'scatter',
+        mode: 'lines',
+        x: x1,
+        y: y1,
+        name: headers[selectedVariable1],
+        line: { color: primaryColor }
+      }];
+      
+      layout.title = 'التوزيع الطبيعي';
+      break;
+
+    case 'line':
+      traces = [
+        {
+          type: 'scatter',
+          mode: 'lines+markers',
+          x: values1,
+          y: values2,
+          name: `${headers[selectedVariable1]} vs ${headers[selectedVariable2]}`,
+          line: { color: primaryColor }
+        }
+      ];
+      layout.title = 'المخطط الخطي';
+      break;
+
+    case 'bar':
+      traces = [
+        {
+          type: 'bar',
+          x: values1,
+          y: values2,
+          name: `${headers[selectedVariable1]} vs ${headers[selectedVariable2]}`,
+          marker: { color: primaryColor }
+        }
+      ];
+      layout.title = 'المخطط العمودي';
+      break;
+
+    case 'pie':
+      traces = [
+        {
+          type: 'pie',
+          labels: values1.map((_, i) => `${headers[selectedVariable1]}_${i}`),
+          values: values1,
+          textinfo: "label+percent",
+          insidetextorientation: "radial",
+          marker: {
+            colors: values1.map((_, i) => 
+              `hsl(${(i * 360/values1.length)}, 70%, 50%)`
+            )
+          }
+        }
+      ];
+      layout.title = 'المخطط الدائري';
+      break;
+
+    case 'density':
+      const kde1 = calculateKDE(values1);
+      const kde2 = calculateKDE(values2);
+      
+      traces = [
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: kde1.x,
+          y: kde1.y,
+          name: headers[selectedVariable1],
+          fill: 'tozeroy',
+          line: { color: primaryColor }
+        },
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: kde2.x,
+          y: kde2.y,
+          name: headers[selectedVariable2],
+          fill: 'tozeroy',
+          line: { color: '#ff4081' }
+        }
+      ];
+      
+      layout.title = 'منحنى الكثافة';
+      break;
+
+    case 'correlation':
+      const corrData = calculateAdvancedCorrelogram();
+      traces = [{
+        type: 'heatmap',
+        z: corrData.correlations,
+        x: headers,
+        y: headers,
+        colorscale: [
+          [0.0, '#c41e3a'],
+          [0.5, '#ffffff'],
+          [1.0, '#1e77c4']
+        ],
+        zmin: -1,
+        zmax: 1,
+        text: corrData.correlations.map(row => 
+          row.map(val => val.toFixed(3))
+        ),
+        texttemplate: '%{text}',
+        textfont: {
+          family: 'Cairo',
+          size: 12,
+          color: 'black'
+        },
+        showscale: true,
+        hoverongaps: false
+      }];
+
+      layout = {
+        title: {
+          text: 'رسوم الارتباط المتقدم',
+          font: {
+            family: 'Cairo',
+            size: 16
+          }
+        },
+        width: Math.min(800, window.innerWidth - 100),
+        height: Math.min(800, window.innerWidth - 100),
+        margin: {
+          l: 80,
+          r: 80,
+          t: 100,
+          b: 80
+        },
+        xaxis: {
+          tickangle: 45,
+          side: 'bottom',
+          tickfont: {
+            family: 'Cairo',
+            size: 10
+          }
+        },
+        yaxis: {
+          tickfont: {
+            family: 'Cairo',
+            size: 10
+          }
+        },
+        annotations: corrData.annotations
+      };
+      break;
+
+    case 'exponential':
+      const lambda = 1; // Rate parameter
+      const xExp = Array.from({length: 200}, (_, i) => i * 0.05);
+      const yExp = xExp.map(x => calculateExponentialDistribution(x, lambda));
+      
+      traces = [{
+        type: 'scatter',
+        mode: 'lines',
+        x: xExp,
+        y: yExp,
+        name: 'التوزيع الأسي',
+        line: { color: primaryColor },
+      }];
+      
+      // Add empirical density if there's data
+      if (values1.length > 0) {
+        const kde = calculateKDE(values1);
+        traces.push({
+          type: 'scatter',
+          mode: 'lines',
+          x: kde.x,
+          y: kde.y,
+          name: 'البيانات التجريبية',
+          line: { color: '#ff4081', dash: 'dot' }
+        });
+      }
+      
+      layout.title = 'التوزيع الأسي';
+      layout.xaxis.title = 'القيمة';
+      layout.yaxis.title = 'الكثافة';
+      layout.width = window.innerWidth - 100;
+      layout.height = window.innerHeight - 200;
+      layout.showlegend = true;
+      break;
+    
+    case 'regression':
+      const reg1 = calculateRegression(values1);
+      const reg2 = calculateRegression(values2);
+      const xRange = Array.from({length: values1.length}, (_, i) => i + 1);
+      
+      traces = [
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: xRange,
+          y: values1,
+          name: headers[selectedVariable1],
+          marker: { color: primaryColor }
+        },
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: xRange,
+          y: xRange.map(x => reg1.slope * x + reg1.intercept),
+          name: `خط الانحدار - ${headers[selectedVariable1]}`,
+          line: { color: primaryColor, dash: 'dash' }
+        },
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: xRange,
+          y: values2,
+          name: headers[selectedVariable2],
+          marker: { color: '#ff4081' }
+        },
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: xRange,
+          y: xRange.map(x => reg2.slope * x + reg2.intercept),
+          name: `خط الانحدار - ${headers[selectedVariable2]}`,
+          line: { color: '#ff4081', dash: 'dash' }
+        }
+      ];
+      
+      layout.title = 'الانحدار الخطي';
+      layout.showlegend = true;
+      break;
+
+    case 'time':
+      traces = [
+        {
+          type: 'scatter',
+          mode: 'lines+markers',
+          x: Array.from({length: values1.length}, (_, i) => i + 1),
+          y: values1,
+          name: headers[selectedVariable1],
+          line: { color: primaryColor }
+        },
+        {
+          type: 'scatter', 
+          mode: 'lines+markers',
+          x: Array.from({length: values2.length}, (_, i) => i + 1),
+          y: values2,
+          name: headers[selectedVariable2],
+          line: { color: '#ff4081' }
+        }
+      ];
+      
+      const ma1 = calculateMovingAverage(values1, 3);
+      const ma2 = calculateMovingAverage(values2, 3);
+      
+      traces.push({
+        type: 'scatter',
+        mode: 'lines',
+        x: Array.from({length: ma1.length}, (_, i) => i + 1),
+        y: ma1,
+        name: `المتوسط المتحرك - ${headers[selectedVariable1]}`,
+        line: { color: primaryColor, dash: 'dot' }
+      });
+      
+      traces.push({
+        type: 'scatter',
+        mode: 'lines', 
+        x: Array.from({length: ma2.length}, (_, i) => i + 1),
+        y: ma2,
+        name: `المتوسط المتحرك - ${headers[selectedVariable2]}`,
+        line: { color: '#ff4081', dash: 'dot' }
+      });
+      
+      layout.title = 'السلاسل الزمنية';
+      layout.xaxis.title = 'الزمن';
+      layout.showlegend = true;
+      break;
+
+    case 'facetGrid':
+      const uniqueValues1 = [...new Set(values1)].sort((a, b) => a - b);
+      const uniqueValues2 = [...new Set(values2)].sort((a, b) => a - b);
+      
+      // Create subplots in a grid
+      traces = [];
+      for (let i = 0; i < Math.min(uniqueValues1.length, 3); i++) {
+        for (let j = 0; j < Math.min(uniqueValues2.length, 3); j++) {
+          // Filter data points for this subplot
+          const filteredData1 = values1.filter((v, idx) => 
+            Math.abs(v - uniqueValues1[i]) < (Math.max(...values1) - Math.min(...values1)) / 5
+          );
+          const filteredData2 = values2.filter((v, idx) => 
+            Math.abs(v - uniqueValues2[j]) < (Math.max(...values2) - Math.min(...values2)) / 5
+          );
+          
+          // Create scatter plot for this subset
+          traces.push({
+            type: 'scatter',
+            mode: 'markers',
+            x: filteredData1,
+            y: filteredData2,
+            xaxis: `x${i + 1}`,
+            yaxis: `y${i * 3 + j + 1}`,
+            name: `${headers[selectedVariable1]}: ${uniqueValues1[i].toFixed(1)}, ${headers[selectedVariable2]}: ${uniqueValues2[j].toFixed(1)}`,
+            marker: {
+              color: `hsl(${(i * 120 + j * 40) % 360}, 70%, 50%)`,
+              size: 6,
+              opacity: 0.6
+            },
+            showlegend: false
+          });
+        }
+      }
+      
+      // Special layout for facet grid
+      layout = {
+        grid: {
+          rows: 3,
+          columns: 3,
+          pattern: 'independent'
+        },
+        title: {
+          text: 'الرسوم متعددة العلاقات',
+          font: {
+            family: 'Cairo',
+            size: 16
+          }
+        },
+        showlegend: false,
+        height: 800,
+        width: 800,
+        margin: {
+          l: 50,
+          r: 50,
+          t: 50,
+          b: 50
+        },
+        font: {
+          family: 'Cairo',
+          size: 10
+        }
+      };
+      
+      // Add axes titles for each subplot
+      for (let i = 1; i <= 9; i++) {
+        layout[`xaxis${i}`] = {
+          title: headers[selectedVariable1],
+          showgrid: true,
+          zeroline: true
+        };
+        layout[`yaxis${i}`] = {
+          title: headers[selectedVariable2],
+          showgrid: true,
+          zeroline: true
+        };
+      }
+      break;
+
+    case 'ppplot':
+      const ppData = calculatePPPlot(values1);
+      
+      traces = [
+        // Reference line
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: [0, 1],
+          y: [0, 1],
+          name: 'المرجع',
+          line: {
+            color: '#cccccc',
+            dash: 'dash'
+          }
+        },
+        // PP Plot points
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: ppData.theoretical,
+          y: ppData.empirical,
+          name: headers[selectedVariable1],
+          marker: {
+            color: primaryColor,
+            size: 8
+          }
+        }
+      ];
+      
+      layout.title = 'P-P Plot';
+      layout.xaxis.title = 'الاحتمالات النظرية';
+      layout.yaxis.title = 'الاحتمالات التجريبية';
+      layout.width = 600;
+      layout.height = 600;
+      break;
+
+    case 'qqplot':
+      const qqData = calculateQQPlot(values1);
+      
+      traces = [
+        // Reference line
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: [Math.min(...qqData.theoretical), Math.max(...qqData.theoretical)],
+          y: [Math.min(...qqData.theoretical), Math.max(...qqData.theoretical)],
+          name: 'المرجع',
+          line: {
+            color: '#cccccc',
+            dash: 'dash'
+          }
+        },
+        // QQ Plot points
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: qqData.theoretical,
+          y: qqData.observed,
+          name: headers[selectedVariable1],
+          marker: {
+            color: primaryColor,
+            size: 8
+          }
+        }
+      ];
+      
+      layout.title = 'Q-Q Plot';
+      layout.xaxis.title = 'الكميات النظرية';
+      layout.yaxis.title = 'الكميات المشاهدة';
+      layout.width = 600;
+      layout.height = 600;
+      break;
+
+    case 'grid':
+      // Create a grid layout of small multiples
+      const gridSize = Math.ceil(Math.sqrt(headers.length));
+      traces = [];
+      layout = {
+        grid: {
+          rows: gridSize,
+          columns: gridSize,
+          pattern: 'independent'
+        },
+        title: {
+          text: 'الرسوم البيانية الشبكية',
+          font: {
+            family: 'Cairo',
+            size: 16
+          }
+        },
+        showlegend: false,
+        height: window.innerHeight - 100,
+        width: window.innerWidth - 100,
+        margin: {
+          l: 40,
+          r: 40,
+          t: 60,
+          b: 40
+        }
+      };
+
+      // Create subplots for each variable
+      for (let i = 0; i < headers.length; i++) {
+        traces.push({
+          type: 'scatter',
+          mode: 'lines+markers',
+          x: Array.from({length: data.length}, (_, j) => j + 1),
+          y: data.map(row => row[i]),
+          xaxis: `x${i + 1}`,
+          yaxis: `y${i + 1}`,
+          name: headers[i],
+          line: {
+            color: `hsl(${(i * 360 / headers.length)}, 70%, 50%)`,
+            width: 1.5
+          },
+          marker: {
+            size: 4
+          }
+        });
+
+        // Add axis titles
+        layout[`xaxis${i + 1}`] = {
+          title: {
+            text: 'الترتيب',
+            font: {
+              family: 'Cairo',
+              size: 10
+            }
+          },
+          showgrid: true,
+          zeroline: true
+        };
+        
+        layout[`yaxis${i + 1}`] = {
+          title: {
+            text: headers[i],
+            font: {
+              family: 'Cairo',
+              size: 10
+            }
+          },
+          showgrid: true,
+          zeroline: true
+        };
+      }
+
+      Plotly.newPlot('chart', traces, layout, {
+        responsive: true,
+        displayModeBar: false,
+        displaylogo: false
+      });
+      break;
+
+    case 'logit':
+      const logitX = Array.from({length: 100}, (_, i) => -6 + (12 * i / 99));
+      const logitY = logitX.map(x => calculateLogit(x));
+      
+      // Calculate empirical logit values
+      const sortedLogit = [...values1].sort((a, b) => a - b);
+      const empiricalLogit = sortedLogit.map((x, i) => {
+        const p = (i + 0.5) / sortedLogit.length;
+        return Math.log(p / (1 - p));
+      });
+      
+      traces = [
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: logitX,
+          y: logitY,
+          name: 'منحنى اللوجيت النظري',
+          line: { color: primaryColor }
+        },
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: empiricalLogit,
+          y: sortedLogit.map((_, i) => (i + 0.5) / sortedLogit.length),
+          name: 'البيانات التجريبية',
+          marker: {
+            color: 'red',
+            size: 6
+          }
+        }
+      ];
+      
+      layout.title = 'منحنى اللوجيت';
+      layout.xaxis.title = 'القيم';
+      layout.yaxis.title = 'الاحتمال';
+      layout.width = window.innerWidth - 100;
+      layout.height = window.innerHeight - 200;
+      break;
+
+    case 'probit':
+      const probitX = Array.from({length: 100}, (_, i) => -4 + (8 * i / 99));
+      const probitY = probitX.map(x => calculateProbit(x));
+      
+      // Calculate empirical probit values
+      const sortedProbit = [...values1].sort((a, b) => a - b);
+      const empiricalProbit = sortedProbit.map((x, i) => {
+        const p = (i + 0.5) / sortedProbit.length;
+        return Math.sqrt(2) * erfinv(2 * p - 1);
+      });
+      
+      traces = [
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: probitX,
+          y: probitY,
+          name: 'منحنى البروبيت النظري',
+          line: { color: primaryColor }
+        },
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: empiricalProbit,
+          y: sortedProbit.map((_, i) => (i + 0.5) / sortedProbit.length),
+          name: 'البيانات التجريبية',
+          marker: {
+            color: '#ff4081',
+            size: 6
+          }
+        }
+      ];
+      
+      layout.title = 'منحنى البروبيت';
+      layout.xaxis.title = 'القيم';
+      layout.yaxis.title = 'الاحتمال';
+      layout.width = window.innerWidth - 100;
+      layout.height = window.innerHeight - 200;
+      break;
+
+    case 'cluster':
+      // Prepare data for clustering
+      const dataPoints = data.map(row => [row[selectedVariable1], row[selectedVariable2]]);
+      const k = 3; // Number of clusters
+      
+      // Normalize data - use unique variable names
+      const clusterPoints1 = dataPoints.map(p => p[0]);
+      const clusterPoints2 = dataPoints.map(p => p[1]);
+      const clusterMean1 = math.mean(clusterPoints1);
+      const clusterMean2 = math.mean(clusterPoints2);
+      const clusterStd1 = math.std(clusterPoints1);
+      const clusterStd2 = math.std(clusterPoints2);
+      
+      const normalizedData = dataPoints.map(p => [
+        (p[0] - clusterMean1) / clusterStd1,
+        (p[1] - clusterMean2) / clusterStd2
+      ]);
+      
+      // Perform clustering
+      const clusterResult = calculateKMeansClusters(normalizedData, k);
+      
+      // Create scatter plot with clusters
+      const colors = ['#1f77b4', '#ff7f0e', '#2ca02c'];
+      
+      traces = [];
+      
+      // Plot points for each cluster
+      for (let i = 0; i < k; i++) {
+        const clusterPoints = dataPoints.filter((_, idx) => clusterResult.labels[idx] === i);
+        
+        traces.push({
+          type: 'scatter',
+          mode: 'markers',
+          x: clusterPoints.map(p => p[0]),
+          y: clusterPoints.map(p => p[1]),
+          name: `المجموعة ${i + 1}`,
+          marker: {
+            color: colors[i],
+            size: 10,
+            opacity: 0.7
+          }
+        });
+      }
+      
+      // Plot centroids
+      const denormalizedCentroids = clusterResult.centroids.map(c => [
+        c[0] * clusterStd1 + clusterMean1,
+        c[1] * clusterStd2 + clusterMean2
+      ]);
+      
+      layout.title = 'التحليل العنقودي';
+      layout.xaxis.title = headers[selectedVariable1];
+      layout.yaxis.title = headers[selectedVariable2];
+      layout.showlegend = true;
+      layout.width = window.innerWidth - 100;
+      layout.height = window.innerHeight - 200;
+      break;
+
+    case 'fdist':
+      const df1 = 5; // Degrees of freedom for numerator
+      const df2 = 10; // Degrees of freedom for denominator
+      const xF = Array.from({length: 200}, (_, i) => i * 0.1);
+      const yF = xF.map(x => calculateFDistribution(x, df1, df2));
+      
+      traces = [{
+        type: 'scatter',
+        mode: 'lines',
+        x: xF,
+        y: yF,
+        name: 'F توزيع',
+        line: { color: primaryColor },
+      }];
+      
+      layout.title = 'F توزيع';
+      layout.xaxis.title = 'القيمة';
+      layout.yaxis.title = 'الكثافة';
+      layout.width = window.innerWidth - 100;
+      layout.height = window.innerHeight - 200;
+      break;
+
+    case 'tdist':
+      const dfT = 5; // Degrees of freedom
+      const xT = Array.from({length: 200}, (_, i) => -4 + i * 0.04);
+      const yT = xT.map(x => calculateTDistribution(x, dfT));
+      
+      traces = [{
+        type: 'scatter',
+        mode: 'lines',
+        x: xT,
+        y: yT,
+        name: 't توزيع',
+        line: { color: primaryColor },
+      }];
+      
+      layout.title = 't توزيع';
+      layout.xaxis.title = 'القيمة';
+      layout.yaxis.title = 'الكثافة';
+      layout.width = window.innerWidth - 100;
+      layout.height = window.innerHeight - 200;
+      break;
+
+    case 'chisqdist':
+      const dfChi = 5; // Degrees of freedom
+      const xChi = Array.from({length: 200}, (_, i) => i * 0.1);
+      const yChi = xChi.map(x => calculateChiSquareDistribution(x, dfChi));
+      
+      traces = [{
+        type: 'scatter',
+        mode: 'lines',
+        x: xChi,
+        y: yChi,
+        name: 'χ² توزيع',
+        line: { color: primaryColor },
+      }];
+      
+      layout.title = 'χ² توزيع';
+      layout.xaxis.title = 'القيمة';
+      layout.yaxis.title = 'الكثافة';
+      layout.width = window.innerWidth - 100;
+      layout.height = window.innerHeight - 200;
+      break;
+
+    case 'arima':
+      const timePoints = Array.from({length: values1.length}, (_, i) => i + 1);
+      const arimaForecast = calculateARIMA(values1);
+      
+      traces = [
+        {
+          type: 'scatter',
+          mode: 'lines+markers',
+          x: timePoints.slice(0, -3),
+          y: values1.slice(0, -3),
+          name: 'البيانات الأصلية',
+          line: { color: primaryColor }
+        },
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: timePoints.slice(3),
+          y: arimaForecast,
+          name: 'ARIMA تنبؤات',
+          line: { 
+            color: '#ff4081',
+            dash: 'dash'
+          }
+        }
+      ];
+      
+      layout.title = 'ARIMA نموذج';
+      layout.xaxis.title = 'الزمن';
+      layout.yaxis.title = 'القيمة';
+      break;
+
+    case 'sarima':
+      const sarimaTimePoints = Array.from({length: values1.length}, (_, i) => i + 1);
+      const sarimaForecast = calculateSARIMA(values1);
+      
+      traces = [
+        {
+          type: 'scatter',
+          mode: 'lines+markers',
+          x: sarimaTimePoints.slice(0, -3),
+          y: values1.slice(0, -3),
+          name: 'البيانات الأصلية',
+          line: { color: primaryColor }
+        },
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: sarimaTimePoints.slice(3),
+          y: sarimaForecast,
+          name: 'SARIMA تنبؤات',
+          line: { 
+            color: '#ff4081',
+            dash: 'dash'
+          }
+        },
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: sarimaTimePoints,
+          y: calculateSeasonalPattern(values1),
+          name: 'النمط الموسمي',
+          line: { 
+            color: '#4caf50',
+            dash: 'dot'
+          }
+        }
+      ];
+      
+      layout.title = 'SARIMA نموذج';
+      layout.xaxis.title = 'الزمن';
+      layout.yaxis.title = 'القيمة';
+      break;
+
+    case 'deviation':
+      // Calculate mean for reference
+      const devMean1 = math.mean(values1);
+      const devMean2 = math.mean(values2);
+      
+      // Calculate deviations
+      const deviations1 = values1.map(v => v - devMean1);
+      const deviations2 = values2.map(v => v - devMean2);
+      
+      // Calculate standard error bands
+      const devStd1 = math.std(values1);
+      const devStd2 = math.std(values2);
+      
+      const timeAxis = Array.from({length: values1.length}, (_, i) => i + 1);
+      
+      traces = [
+        // Deviations for first variable
+        {
+          type: 'scatter',
+          mode: 'lines+markers',
+          x: timeAxis,
+          y: deviations1,
+          name: `${headers[selectedVariable1]} الانحرافات`,
+          line: { color: primaryColor },
+          marker: { size: 6 }
+        },
+        // Standard error bands for first variable
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: timeAxis,
+          y: Array(values1.length).fill(devStd1),
+          name: '+1 SD',
+          line: { 
+            color: primaryColor,
+            dash: 'dash',
+            width: 1
+          },
+          showlegend: false
+        },
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: timeAxis,
+          y: Array(values1.length).fill(-devStd1),
+          name: '-1 SD',
+          line: { 
+            color: primaryColor,
+            dash: 'dash',
+            width: 1
+          },
+          fill: 'tonexty',
+          fillcolor: `rgba(41,98,255,0.1)`,
+          showlegend: false
+        },
+        // Deviations for second variable
+        {
+          type: 'scatter',
+          mode: 'lines+markers',
+          x: timeAxis,
+          y: deviations2,
+          name: `${headers[selectedVariable2]} الانحرافات`,
+          line: { color: '#ff4081' },
+          marker: { size: 6 }
+        },
+        // Standard error bands for second variable
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: timeAxis,
+          y: Array(values2.length).fill(devStd2),
+          name: '+1 SD',
+          line: { 
+            color: '#ff4081',
+            dash: 'dash',
+            width: 1
+          },
+          showlegend: false
+        },
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: timeAxis,
+          y: Array(values2.length).fill(-devStd2),
+          name: '-1 SD',
+          line: { 
+            color: '#ff4081',
+            dash: 'dash',
+            width: 1
+          },
+          fill: 'tonexty',
+          fillcolor: 'rgba(255,64,129,0.1)',
+          showlegend: false
+        },
+        // Zero reference line
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: timeAxis,
+          y: Array(values1.length).fill(0),
+          name: 'المتوسط',
+          line: { 
+            color: '#757575',
+            dash: 'dot',
+            width: 1
+          }
+        }
+      ];
+
+      layout.title = 'مخططات الانحراف';
+      layout.xaxis.title = 'الترتيب';
+      layout.yaxis.title = 'الانحراف عن المتوسط';
+      layout.showlegend = true;
+      break;
+
+    case 'outliers':
+      // Calculate outlier bounds using IQR method
+      const q1_1 = calculateQuantile(values1, 0.25);
+      const q3_1 = calculateQuantile(values1, 0.75);
+      const iqr1 = q3_1 - q1_1;
+      const lowerBound1 = q1_1 - 1.5 * iqr1;
+      const upperBound1 = q3_1 + 1.5 * iqr1;
+
+      const q1_2 = calculateQuantile(values2, 0.25);
+      const q3_2 = calculateQuantile(values2, 0.75);
+      const iqr2 = q3_2 - q1_2;
+      const lowerBound2 = q1_2 - 1.5 * iqr2;
+      const upperBound2 = q3_2 + 1.5 * iqr2;
+
+      // Separate data points into normal and outlier groups
+      const normal1 = values1.filter(v => v >= lowerBound1 && v <= upperBound1);
+      const outliers1 = values1.filter(v => v < lowerBound1 || v > upperBound1);
+      const normal2 = values2.filter(v => v >= lowerBound2 && v <= upperBound2);
+      const outliers2 = values2.filter(v => v < lowerBound2 || v > upperBound2);
+
+      traces = [
+        // Normal points for first variable
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: Array(normal1.length).fill(1),
+          y: normal1,
+          name: `${headers[selectedVariable1]} - نقاط عادية`,
+          marker: {
+            color: primaryColor,
+            size: 8
+          }
+        },
+        // Outlier points for first variable
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: Array(outliers1.length).fill(1),
+          y: outliers1,
+          name: `${headers[selectedVariable1]} - نقاط شاذة`,
+          marker: {
+            color: 'red',
+            size: 12,
+            symbol: 'diamond'
+          }
+        },
+        // Box plot for first variable
+        {
+          type: 'box',
+          x: Array(values1.length).fill(1),
+          y: values1,
+          name: headers[selectedVariable1],
+          boxpoints: false,
+          marker: {
+            color: primaryColor
+          },
+          showlegend: false
+        },
+        // Normal points for second variable
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: Array(normal2.length).fill(2),
+          y: normal2,
+          name: `${headers[selectedVariable2]} - نقاط عادية`,
+          marker: {
+            color: '#ff4081',
+            size: 8
+          }
+        },
+        // Outlier points for second variable
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: Array(outliers2.length).fill(2),
+          y: outliers2,
+          name: `${headers[selectedVariable2]} - نقاط شاذة`,
+          marker: {
+            color: 'red',
+            size: 12,
+            symbol: 'diamond'
+          }
+        },
+        // Box plot for second variable
+        {
+          type: 'box',
+          x: Array(values2.length).fill(2),
+          y: values2,
+          name: headers[selectedVariable2],
+          boxpoints: false,
+          marker: {
+            color: '#ff4081'
+          },
+          showlegend: false
+        }
+      ];
+
+      layout.title = 'مخطط القيم الشاذة';
+      layout.showlegend = true;
+      layout.xaxis = {
+        ticktext: [headers[selectedVariable1], headers[selectedVariable2]],
+        tickvals: [1, 2],
+        tickangle: 0
+      };
+      layout.yaxis.title = 'القيم';
+      break;
+
+    case 'symmetry':
+      // Calculate symmetry statistics
+      const symData1 = calculateSymmetryData(values1);
+      const symData2 = calculateSymmetryData(values2);
+      
+      traces = [
+        // First variable symmetry plot
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: symData1.expected,
+          y: symData1.actual,
+          name: `${headers[selectedVariable1]} - نقاط التماثل`,
+          marker: {
+            color: primaryColor,
+            size: 8
+          }
+        },
+        // Reference line for first variable
+        {
+          type: 'scatter',
+          mode: 'lines',
+          x: [Math.min(...symData1.expected), Math.max(...symData1.expected)],
+          y: [Math.min(...symData1.expected), Math.max(...symData1.expected)],
+          name: `${headers[selectedVariable1]} - خط المرجع`,
+          line: {
+            color: primaryColor,
+            dash: 'dash'
+          }
+        },
+        // Second variable symmetry plot 
+        {
+          type: 'scatter',
+          mode: 'markers',
+          x: symData2.expected,
+          y: symData2.actual,
+          name: `${headers[selectedVariable2]} - نقاط التماثل`,
+          marker: {
+            color: '#ff4081',
+            size: 8
+          }
+        },
+        // Reference line for second variable
+        {
+          type: 'scatter', 
+          mode: 'lines',
+          x: [Math.min(...symData2.expected), Math.max(...symData2.expected)],
+          y: [Math.min(...symData2.expected), Math.max(...symData2.expected)],
+          name: `${headers[selectedVariable2]} - خط المرجع`,
+          line: {
+            color: '#ff4081',
+            dash: 'dash'
+          }
+        }
+      ];
+
+      layout.title = 'مخططات التماثل';
+      layout.xaxis.title = 'القيم المتوقعة';
+      layout.yaxis.title = 'القيم الفعلية';
+      layout.showlegend = true;
+      break;
+  }
+  
+  const config = {
+    responsive: true,
+    displayModeBar: false, // Change this to false to hide the mode bar completely
+    displaylogo: false,
+    modeBarButtonsToRemove: ['lasso2d', 'select2d']
+  };
+
+  Plotly.newPlot('chart', traces, layout, config);
+}
+
+// Helper function for calculating quantiles
+function calculateQuantile(data, p) {
+  const sorted = [...data].sort((a, b) => a - b);
+  const n = sorted.length;
+  const index = p * (n - 1);
+  const lower = Math.floor(index);
+  const upper = Math.ceil(index);
+  const weight = index - lower;
+  
+  if (upper >= n) return sorted[n - 1];
+  if (lower < 0) return sorted[0];
+  
+  return sorted[lower] * (1 - weight) + sorted[upper] * weight;
+}
+
+// Add the helper function for inverse error function (erfinv)
+function erfinv(x) {
+  const a = 0.147;
+  let y;
+  
+  if (Math.abs(x) <= 0.7) {
+    const z = x * x;
+    y = x * (((4.47033 * z + 2.12101) * z + 2.45133) * z + 1.28279) /
+        ((((1.13297 * z + 1.35652) * z + 0.17954) * z + 1) * z + 0.84299);
+  } else {
+    const z = Math.sqrt(-Math.log((1 - Math.abs(x)) / 2));
+    y = ((((-0.0012624911 * z + 0.00837487) * z - 0.0768874) * z + 0.207532) * z + 2.4187) /
+        ((((0.00943887 * z + 0.0830767) * z + 0.667701) * z + 1) * z + 0.337051);
+    if (x < 0) y = -y;
+  }
+  
+  return y;
+}
+
+// Update the calculateQQPlot function to use our erfinv implementation
+function calculateQQPlot(data) {
+  const n = data.length;
+  const sorted = [...data].sort((a, b) => a - b);
+  
+  // Calculate theoretical quantiles
+  const theoretical = Array.from({length: n}, (_, i) => {
+    const p = (i + 0.5) / n;
+    return Math.sqrt(2) * erfinv(2 * p - 1);
+  });
+  
+  // Standardize observed data
+  const mean = math.mean(sorted);
+  const std = math.std(sorted);
+  const observed = sorted.map(x => (x - mean) / std);
+  
+  return { observed, theoretical };
+}
+
+function calculateKDE(data) {
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min;
+  const bandwidth = 0.9 * Math.min(
+    math.std(data),
+    (calculateQuantile(data, 0.75) - calculateQuantile(data, 0.25)) / 1.34
+  ) * Math.pow(data.length, -0.2);
+  
+  const x = Array.from({length: 100}, (_, i) => 
+    min + (range * i / 99)
+  );
+  
+  const y = x.map(xi => {
+    return data.reduce((sum, di) => {
+      return sum + Math.exp(-0.5 * Math.pow((xi - di) / bandwidth, 2)) / 
+             (bandwidth * Math.sqrt(2 * Math.PI));
+    }, 0) / data.length;
+  });
+
+  return { x, y };
+}
+
+function calculateCorrelationMatrix() {
+  const matrix = [];
+  for (let i = 0; i < headers.length; i++) {
+    matrix[i] = [];
+    for (let j = 0; j < headers.length; j++) {
+      const x = data.map(row => row[i]);
+      const y = data.map(row => row[j]);
+      matrix[i][j] = calculateCorrelation(x, y);
+    }
+  }
+  return matrix;
+}
+
+function calculateCorrelation(x, y) {
+  const n = x.length;
+  const xMean = math.mean(x);
+  const yMean = math.mean(y);
+  
+  const numerator = x.reduce((sum, xi, i) => 
+    sum + (xi - xMean) * (y[i] - yMean), 0
+  );
+  
+  const xStd = math.std(x);
+  const yStd = math.std(y);
+  
+  return numerator / ((n - 1) * xStd * yStd);
+}
+
+function calculateRegression(y) {
+  const x = Array.from({length: y.length}, (_, i) => i + 1);
+  const xMean = math.mean(x);
+  const yMean = math.mean(y);
+  
+  const numerator = x.reduce((sum, xi, i) => 
+    sum + (xi - xMean) * (y[i] - yMean), 0
+  );
+  const denominator = x.reduce((sum, xi) => 
+    sum + Math.pow(xi - xMean, 2), 0
+  );
+  
+  const slope = numerator / denominator;
+  const intercept = yMean - slope * xMean;
+  
+  return { slope, intercept };
+}
+
+function calculateMovingAverage(data, window) {
+  const result = [];
+  for (let i = 0; i <= data.length - window; i++) {
+    const slice = data.slice(i, i + window);
+    result.push(slice.reduce((a, b) => a + b) / window);
+  }
+  return result;
+}
+
+function calculateAdvancedCorrelogram() {
+  const correlations = [];
+  const annotations = [];
+  
+  // Calculate correlation matrix
+  for (let i = 0; i < headers.length; i++) {
+    correlations[i] = [];
+    for (let j = 0; j < headers.length; j++) {
+      const x = data.map(row => row[i]);
+      const y = data.map(row => row[j]);
+      const corr = calculateCorrelation(x, y);
+      correlations[i][j] = corr;
+      
+      // Add significance indicators
+      const n = data.length;
+      const pValue = calculatePValue(corr, n);
+      
+      let significance = '';
+      if (pValue < 0.001) significance = '***';
+      else if (pValue < 0.01) significance = '**';
+      else if (pValue < 0.05) significance = '*';
+      
+      annotations.push({
+        x: j,
+        y: i,
+        xref: 'x',
+        yref: 'y',
+        text: significance,
+        showarrow: false,
+        font: {
+          family: 'Cairo',
+          size: 12,
+          color: Math.abs(corr) > 0.5 ? 'white' : 'black'
+        }
+      });
+    }
+  }
+  
+  return {
+    correlations: correlations,
+    annotations: annotations
+  };
+}
+
+// Add this helper function for p-value calculation
+function calculatePValue(correlation, n) {
+  const tStat = correlation * Math.sqrt((n-2)/(1-correlation*correlation));
+  return 2 * (1 - math.erf(Math.abs(tStat)/Math.sqrt(2)));
+}
+
+// New helper functions for PP and QQ plots
+function calculatePPPlot(data) {
+  const n = data.length;
+  const sorted = [...data].sort((a, b) => a - b);
+  
+  // Calculate empirical probabilities
+  const empirical = sorted.map((_, i) => (i + 1) / n);
+  
+  // Calculate theoretical probabilities using normal distribution
+  const mean = math.mean(sorted);
+  const std = math.std(sorted);
+  const theoretical = sorted.map(x => 
+    0.5 * (1 + math.erf((x - mean) / (Math.sqrt(2) * std)))
+  );
+  
+  return { empirical, theoretical };
+}
+
+document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+document.getElementById('chartType').addEventListener('change', updateChart);
+
+const dropzone = document.getElementById('dropzone');
+
+dropzone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropzone.classList.add('dragover');
+});
+
+dropzone.addEventListener('dragleave', () => {
+  dropzone.classList.remove('dragover');
+});
+
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  document.getElementById('fileInput').files = e.dataTransfer.files;
+  handleFileSelect({target: {files: [file]}});
+});
+
+function calculateFDistribution(x, df1, df2) {
+  const numerator = Math.pow(df1 * x, df1/2) * Math.pow(df2, df2/2);
+  const denominator = Math.pow(df1 * x + df2, (df1 + df2)/2);
+  const beta = math.gamma(df1/2) * math.gamma(df2/2) / math.gamma((df1 + df2)/2);
+  return numerator / (x * denominator * beta);
+}
+
+function calculateTDistribution(x, df) {
+  const numerator = math.gamma((df + 1) / 2);
+  const denominator = Math.sqrt(df * Math.PI) * math.gamma(df / 2);
+  return numerator / denominator * Math.pow(1 + x*x/df, -(df + 1)/2);
+}
+
+function calculateChiSquareDistribution(x, df) {
+  const numerator = Math.pow(x, df/2 - 1) * Math.exp(-x/2);
+  const denominator = Math.pow(2, df/2) * math.gamma(df/2);
+  return numerator / denominator;
+}
+
+function calculateExponentialDistribution(x, lambda) {
+  return lambda * Math.exp(-lambda * x);
+}
+
+function calculateARIMA(data, p = 1, d = 1, q = 1) {
+  const n = data.length;
+  const differenced = [];
+  
+  // Differencing
+  for(let i = d; i < n; i++) {
+    let value = data[i];
+    for(let j = 1; j <= d; j++) {
+      value -= data[i - j];
+    }
+    differenced.push(value);
+  }
+  
+  // AR component
+  const ar = [];
+  for(let i = p; i < differenced.length; i++) {
+    let pred = 0;
+    for(let j = 1; j <= p; j++) {
+      pred += 0.7 * differenced[i - j]; // Using simple AR coefficients
+    }
+    ar.push(pred);
+  }
+  
+  // MA component
+  const residuals = differenced.slice(p).map((v, i) => v - ar[i]);
+  const ma = [];
+  for(let i = q; i < residuals.length; i++) {
+    let pred = 0;
+    for(let j = 1; j <= q; j++) {
+      pred += 0.3 * residuals[i - j]; // Using simple MA coefficients
+    }
+    ma.push(pred);
+  }
+  
+  // Combine predictions
+  const predictions = ar.map((v, i) => v + ma[i]);
+  
+  // Reverse differencing
+  const final = [];
+  for(let i = 0; i < predictions.length; i++) {
+    let value = predictions[i];
+    for(let j = 1; j <= d; j++) {
+      value += data[i + d];
+    }
+    final.push(value);
+  }
+  
+  return final;
+}
+
+function calculateSARIMA(data, period = 12) {
+  const n = data.length;
+  
+  // Calculate seasonal component
+  const seasonal = [];
+  for(let i = 0; i < n; i++) {
+    const seasonalPeriod = i % period;
+    const seasonalValues = [];
+    for(let j = seasonalPeriod; j < n; j += period) {
+      seasonalValues.push(data[j]);
+    }
+    seasonal.push(math.mean(seasonalValues));
+  }
+  
+  // Remove seasonal component
+  const deseasonalized = data.map((v, i) => v - seasonal[i]);
+  
+  // Apply ARIMA to deseasonalized data
+  const arimaForecast = calculateARIMA(deseasonalized);
+  
+  // Add seasonal component back
+  return arimaForecast.map((v, i) => v + seasonal[i + 3]);
+}
+
+// Add helper function for seasonal pattern
+function calculateSeasonalPattern(data, period = 12) {
+  const seasonal = [];
+  const n = data.length;
+  
+  for(let i = 0; i < n; i++) {
+    const seasonalPeriod = i % period;
+    const seasonalValues = [];
+    for(let j = seasonalPeriod; j < n; j += period) {
+      seasonalValues.push(data[j]);
+    }
+    seasonal.push(math.mean(seasonalValues));
+  }
+  
+  return seasonal;
+}
+
+// Add helper function for symmetry calculations
+function calculateSymmetryData(data) {
+  // Sort the data
+  const sorted = [...data].sort((a, b) => a - b);
+  const n = sorted.length;
+  const median = n % 2 === 0 
+    ? (sorted[n/2 - 1] + sorted[n/2]) / 2 
+    : sorted[Math.floor(n/2)];
+  
+  // Calculate expected symmetric values
+  const expected = [];
+  const actual = [];
+  
+  for(let i = 0; i < Math.floor(n/2); i++) {
+    const leftValue = sorted[i];
+    const rightValue = sorted[n - 1 - i];
+    const expectedValue = (leftValue + rightValue) / 2;
+    
+    expected.push(expectedValue);
+    actual.push(median);
+  }
+  
+  // Add center point for odd-length datasets  
+  if(n % 2 === 1) {
+    expected.push(median);
+    actual.push(median);
+  }
+  
+  return {
+    expected: expected,
+    actual: actual
+  };
+}
+</script>
+</body></html>
